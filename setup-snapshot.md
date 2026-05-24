@@ -467,3 +467,101 @@ A secrets scan was run over the repo before the first commit; the only matches
 were the literal words "password"/"secrets" in comments and prose (no credentials),
 and no `/home/sean/` or `sean@` strings are hardcoded anywhere (configs use
 `~`/`%h`/`$HOME`).
+
+---
+
+## 7. Switching WiFi UX to NetworkManager (iwd backend) — STAGED 2026-05-24
+
+**Status: staged, not yet executed.** Script written to `~/switch-to-networkmanager.sh`;
+to be run manually in a real terminal (`sudo bash ~/switch-to-networkmanager.sh`).
+This section will be finalized after the run is confirmed stable for a few days.
+The dotfiles repo is intentionally **not** updated yet.
+
+### Why
+Caelestia's bar WiFi widget only speaks `nmcli` (NetworkManager). The system was
+iwd-only (see [section 2/3 on the iwd stack]), so the widget stayed blank. Goal:
+let NetworkManager own the WiFi UX while iwd keeps doing the actual radio
+association underneath.
+
+### New mental model (after migration)
+- **NetworkManager** = WiFi UX + IP/DHCP for wlan0 (what the widget talks to).
+- **iwd** = just the radio/association driver (NM's `wifi.backend=iwd`). Still
+  enabled; its `/var/lib/iwd/` profiles (incl. `Fizz0499 5G`) are reused, not deleted.
+- **systemd-resolved** = still the DNS resolver; NM feeds it via `dns=systemd-resolved`.
+  `/etc/resolv.conf` stays the resolved stub symlink (untouched).
+- **systemd-networkd** = retired for wlan0 (NM does IP now). Disabled at cutover.
+
+### What the script does (ordered for safety; auto-rollback on any failure)
+1. Preflight: abort unless currently online; timestamped backups to
+   `/root/switch-to-nm-backups/<ts>/` of `25-wireless.network`, `iwd/main.conf`,
+   `/etc/NetworkManager/`, unit states, and `iwctl known-networks list`.
+2. `pacman -S --needed networkmanager` (already installed as a caelestia-shell dep).
+3. Drop-ins: `/etc/NetworkManager/conf.d/wifi-backend.conf` (`wifi.backend=iwd`)
+   and `dns.conf` (`dns=systemd-resolved`).
+4. Start NM and prove it's functional (running, sees wlan0, scans) **while still
+   online via networkd**.
+5. Cutover: `disable --now systemd-networkd`, then activate `Fizz0499 5G` through
+   NM reusing iwd's stored PSK (no password in the script).
+6. Verify: `nmcli` state connected + wlan0 has IPv4 + `ping 1.1.1.1` + `ping github.com`.
+   Any failure -> automatic rollback.
+
+### Files changed by a successful run
+- `+ /etc/NetworkManager/conf.d/wifi-backend.conf`
+- `+ /etc/NetworkManager/conf.d/dns.conf`
+- `NetworkManager.service` enabled; `systemd-networkd.service` disabled.
+- iwd, resolved, `/var/lib/iwd/`, `/etc/iwd/main.conf`, `25-wireless.network`: **unchanged**
+  (the latter two backed up only; iwd's `EnableNetworkConfiguration=false` is already
+  correct for the NM-backend world).
+
+### Rollback (restores iwd-only in well under 30s)
+    sudo bash ~/switch-to-networkmanager.sh rollback
+Disables NM, removes the two conf.d drop-ins, restarts iwd (resumes standalone
+autoconnect) + nudges `iwctl station wlan0 connect "Fizz0499 5G"`, re-enables
+networkd + resolved, restores backups, waits and verifies ping. Runs automatically
+if the forward migration fails verification.
+
+### Recovery if WiFi breaks on next boot
+Boot to a console (hold Space at the bootloader for a working/Safe entry, or
+Ctrl+Alt+F2 to a TTY and log in), then run the rollback command above.
+
+### Known caveat
+If the iwd backend doesn't hand its stored PSK to NM automatically, the run
+rolls back and prints the one manual command to finish the switch yourself
+(`nmcli device wifi connect "Fizz0499 5G" password '<...>'`) — the password is
+never written into the script.
+
+### Update 2026-05-24 (later): v1 failed — real cause was a power-tuning cycle
+
+First migration attempt failed at `systemctl enable --now NetworkManager` with
+"Transaction order is cyclic"; rollback worked, stayed online on iwd. The assumed
+cause (NM and networkd can't both be enabled) was **wrong** — the journal showed
+no NM/networkd cycle. The real culprit is a pre-existing **systemd ordering cycle**
+from `tune-power.sh`'s `ppd-ac-switch.service`:
+
+    ppd-ac-switch.service  After  power-profiles-daemon.service   (our unit)
+    power-profiles-daemon  After  multi-user.target               (upstream PPD unit)
+    multi-user.target      After  ppd-ac-switch.service           (it's WantedBy=multi-user.target)
+
+= a closed loop systemd can't resolve. It poisons ANY transaction that pulls in
+`multi-user.target` — and `enable --now NetworkManager` does exactly that. It had
+also been silently deleting ppd-ac-switch's boot job every boot, so the AC/battery
+auto-switcher had **never actually run at boot** (`ActiveEnterTimestamp` empty).
+
+**Fix staged:** `~/fix-ppd-cycle.sh` — changes ppd-ac-switch.service `[Install]`
+from `WantedBy=multi-user.target` to `WantedBy=power-profiles-daemon.service` (runs
+right after PPD, no multi-user ordering edge → loop gone). Self-verifying; reverts
+if a cycle remains. Side benefit: the AC switcher will now run at boot.
+
+**WiFi script rewritten to v2** (`~/switch-to-networkmanager.sh`): NM is configured
+but NOT started until a tight cutover that never has both units enabled when
+anything starts — `disable systemd-networkd` (no --now) -> `enable NetworkManager`
+(no --now) -> `daemon-reload` -> `stop systemd-networkd` -> `start NetworkManager`.
+Dropped v1's "prove NM works while still online" probe (impossible now — can't
+start NM while networkd is enabled; the cutover itself is the test). Offline window
+grows to ~15-20s during cutover; auto-rollback (now also handling a halfway-cutover
+state) restores connectivity in <30s on any failure.
+
+**Run order when ready:** `sudo bash ~/fix-ppd-cycle.sh` first, then
+`sudo bash ~/switch-to-networkmanager.sh`. Still not run yet; dotfiles repo
+untouched. NOTE: the repo's `scripts/tune-power.sh` still emits the buggy unit and
+must be patched before it's used on a fresh install.
