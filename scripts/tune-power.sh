@@ -85,7 +85,10 @@ Type=oneshot
 ExecStart=$SWITCH
 
 [Install]
-WantedBy=multi-user.target
+# Order after PPD, not before multi-user.target: WantedBy=multi-user.target
+# created an ordering cycle (multi-user.target -> ppd-ac-switch -> ppd ->
+# multi-user.target) that stopped this unit from ever running at boot.
+WantedBy=power-profiles-daemon.service
 EOF
 
 # --- 5. udev rule: re-apply whenever the AC adapter changes -------------------

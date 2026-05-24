@@ -651,3 +651,72 @@ screen-off. `lockBeforeSleep:true` and `inhibitWhenAudio:true` left at defaults.
 **Apply / verify:** No daemon to restart — Caelestia hot-reloads shell.json
 (confirmed: shell PID unchanged, file re-serialized by the shell itself).
 Backup of the pre-change file: `~/.config/caelestia/shell.json.bak-20260524-165452`.
+
+## Trackpad gesture: 3-finger workspace swipe (2026-05-24)
+
+**Goal:** 3-finger horizontal swipe = switch workspace (a touchpad twin of the
+SUPER+SHIFT+LEFT/RIGHT binds), with smooth finger-tracking. Keyboard binds untouched.
+
+**Hyprland 0.55.2 note (plan was written for the old syntax):** the old
+`gestures { workspace_swipe = true; workspace_swipe_fingers = N }` options were
+**removed** — `hyprctl getoption gestures:workspace_swipe` returns "no such option".
+Enabling + finger count is now done entirely by the `gesture =` keyword. Caelestia
+upstream already enables workspace swipe, but on **4 fingers**
+(`gesture = $workspaceSwipeFingers, horizontal, workspace`, `$workspaceSwipeFingers=4`
+in ~/.local/share/caelestia/hypr/variables.conf). 3-finger horizontal was unused.
+
+**Change made — one line in `~/.config/caelestia/hypr-user.conf`** (mirrored to
+`~/dotfiles/config/caelestia/hypr-user.conf`):
+
+    gesture = 3, horizontal, workspace
+
+Additive: the upstream 4-finger horizontal swipe and the 3-finger up/down
+special-workspace gestures still work (distinguished by finger count + direction).
+
+**Tuning (global to all workspace swipes; LEFT at Caelestia upstream values in
+~/.local/share/caelestia/hypr/hyprland/gestures.conf — deliberately not overridden):**
+distance=700, cancel_ratio=0.15, min_speed_to_force=5, create_new=true, invert=true,
+forever=false. create_new+forever give parity with the keyboard binds (create new
+workspace at the right edge; stop at workspace 1 on the left).
+
+**Apply / verify:** `hyprctl reload` (done; no logout). `hyprctl configerrors` was
+clean. There's no hyprctl command to list registered gestures in 0.55 — test by
+swiping. Touchpad: dell0895:00-04f3:30b6-touchpad.
+
+**Revert:** delete the `# --- Trackpad gestures ---` block (the `gesture = 3,
+horizontal, workspace` line) from hypr-user.conf, then `hyprctl reload`.
+Backup of pre-change file: ~/.config/caelestia/hypr-user.conf.bak-20260524-173245
+
+## Disable 3-finger vertical gestures (2026-05-24)
+
+**Goal:** kill the 3-finger up/down gestures (open/toggle the special "dashboard"
+workspace); keep 3-finger horizontal (workspace swipe), 4-finger gestures, scroll, drag.
+
+**Where they live:** purely Hyprland-level `gesture =` lines in upstream
+`~/.local/share/caelestia/hypr/hyprland/gestures.conf` — NOT shell QML (grep for
+gesture/swipe/fingers in /etc/xdg/quickshell/caelestia/ returns nothing, so there is
+no shell.json flag for this). The two lines (with $gestureFingers=3):
+  gesture = 3, up,   special, special                         # -> special workspace
+  gesture = 3, down, dispatcher, exec, caelestia toggle specialws  # -> toggle specialws
+
+**How disabled (Hyprland 0.55, no upstream edit):** the gesture system (reworked in
+0.51) has an `unset` action that removes a previously-set gesture; it must EXACTLY
+match the original's finger count + direction. Added to `~/.config/caelestia/hypr-user.conf`
+(mirrored to ~/dotfiles/config/caelestia/hypr-user.conf), which is sourced (hyprland.conf
+line 34) AFTER gestures.conf (line 29):
+
+    gesture = 3, up, unset
+    gesture = 3, down, unset
+
+fingers=3 + up/down only -> does NOT affect 4-finger-down suspend or the 3-finger
+horizontal workspace swipe. (Note: `gestures:workspace_swipe*` enable/finger options
+were removed in 0.51; `hyprctl gestures` query does not exist; `unbind` is keybinds-only
+— `unset` is the supported way to drop a gesture.)
+
+**Apply / verify:** `hyprctl reload` (done; configerrors clean). `hyprctl keyword gesture
+"3, up, unset"` returned ok when tested live. Test by swiping: 3-finger up/down = nothing;
+3-finger left/right still switches workspaces; 4-finger still works.
+
+**Revert (one line):** delete the two `gesture = 3, up/down, unset` lines from
+hypr-user.conf, then `hyprctl reload`.
+Backup of pre-change file: ~/.config/caelestia/hypr-user.conf.bak-20260524-173838

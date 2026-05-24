@@ -1,6 +1,8 @@
 ark
 base
 base-devel
+bat
+bitwarden
 bluez
 bluez-utils
 cmake
@@ -13,6 +15,7 @@ efibootmgr
 firefox
 fish
 flatpak
+fzf
 gammastep
 geoclue
 git
@@ -36,6 +39,7 @@ linux-headers
 nano
 nemo
 nvidia-open-dkms
+obsidian
 okular
 openssh
 pavucontrol
