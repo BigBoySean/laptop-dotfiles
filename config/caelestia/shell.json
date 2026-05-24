@@ -15,6 +15,28 @@
             "scale": 0.9814541635196373
         }
     },
+    "general": {
+        "idle": {
+            "timeouts": [
+                {
+                    "idleAction": "lock",
+                    "timeout": 900
+                },
+                {
+                    "idleAction": "dpms off",
+                    "returnAction": "dpms on",
+                    "timeout": 1800
+                },
+                {
+                    "idleAction": [
+                        "systemctl",
+                        "suspend-then-hibernate"
+                    ],
+                    "timeout": 2700
+                }
+            ]
+        }
+    },
     "services": {
         "useFahrenheit": false
     }

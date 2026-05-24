@@ -565,3 +565,89 @@ state) restores connectivity in <30s on any failure.
 `sudo bash ~/switch-to-networkmanager.sh`. Still not run yet; dotfiles repo
 untouched. NOTE: the repo's `scripts/tune-power.sh` still emits the buggy unit and
 must be patched before it's used on a fresh install.
+
+---
+
+## 8. Cleaning up dead EFI boot entries — STAGED 2026-05-24
+
+**Status: staged, not yet executed.** Script: `~/clean-efi-entries.sh`
+(`sudo bash ~/clean-efi-entries.sh`). NVRAM-only; touches no files on the ESP.
+
+### Diagnosis (read-only, confirmed)
+`efibootmgr` showed three dead entries left over from prior OSes, plus the working
+fallback and firmware generics:
+
+    Boot0000* Windows Boot Manager   -> \EFI\Microsoft\Boot\bootmgfw.efi
+    Boot0001  ubuntu                 -> \EFI\ubuntu\shimx64.efi
+    Boot0008  Garuda                 -> \EFI\Garuda\grubx64.efi
+    Boot0009* UEFI: ...TOSHIBA...    -> \EFI\Boot\BootX64.efi   (working fallback)
+    Boot000A-000D                    firmware generics (Floppy/USB/CD/NIC)
+
+`/boot/EFI/` contains only `BOOT/`, `Linux/`, `systemd/` — **no** `Microsoft`,
+`ubuntu`, or `Garuda` dirs, so those three entries are dead pointers. The fallback
+loader `\EFI\Boot\BootX64.efi` resolves to `/boot/EFI/BOOT/BOOTX64.EFI` (137216 B),
+byte-identical to `systemd/systemd-bootx64.efi` (vfat is case-insensitive → same
+file). BootOrder was `0008,0001,0000,0009,000A..` (firmware tried the 3 dead
+entries before falling through to working Arch — ugly but functional).
+
+### What the script does (NVRAM only)
+1. Verifies (before any change): the 3 dead ESP dirs are absent; the fallback
+   Boot0009 + its loader file exist; and each of Boot0000/0001/0008 still carries
+   its expected label (Windows/ubuntu/Garuda) — refuses to delete a renumbered
+   entry. Aborts with no changes if anything is off (incl. if a leftover
+   Microsoft/ubuntu/Garuda dir is found).
+2. Backs up `efibootmgr -v` to `/root/efi-backups/efibootmgr-before-<ts>.txt`.
+3. Deletes Boot0000, Boot0001, Boot0008.
+4. Creates a named entry `Arch Linux` -> disk nvme0n1 part 1, loader
+   `\EFI\Boot\BootX64.efi` (the existing fallback binary), reading its new BootXXXX
+   number dynamically (skips creation if an `Arch Linux` entry already exists).
+5. Sets BootOrder = `<new>,0009,000A,000B,000C,000D` (Arch first, working fallback
+   Boot0009 kept SECOND as backup, firmware generics last).
+6. Saves an after snapshot and prints a recovery note.
+
+### Safety / what is NOT done
+- Boot0009 (working fallback) is **kept** until a reboot proves the new entry.
+- Firmware entries 000A-000D left alone (regenerated each boot anyway).
+- No file on the ESP is modified — NVRAM variables only.
+- Deleting Boot0009 is deliberately **not** scripted yet; decide after reboot.
+
+### Recovery
+Bootloader files are untouched and Boot0009 still boots Arch via the same
+`\EFI\Boot\BootX64.efi`, so the machine boots even if the new entry is wrong.
+Restore the old order from the before-`.txt`: `efibootmgr -o <BootOrder line>`.
+
+## Idle / lock / screen-off timers (2026-05-24)
+
+**Mechanism:** This system has **no hypridle/swayidle/hyprlock** installed. Idle,
+lock, DPMS and suspend are all handled *inside Caelestia Shell* (`qs -c caelestia`,
+via `kidletime`). The driver is `/etc/xdg/quickshell/caelestia/modules/IdleMonitors.qml`,
+which iterates `GlobalConfig.general.idle.timeouts`. Action strings like `dpms off`
+go to `hyprctl dispatch`; `lock`/`unlock` are special-cased; an array (e.g.
+`["systemctl","suspend-then-hibernate"]`) is run via `execDetached`.
+
+**Config file (user-owned, hot-reloaded, survives reboots & pkg upgrades):**
+`~/.config/caelestia/shell.json` -> key `general.idle.timeouts`.
+Also mirrored to the canonical repo `~/dotfiles/config/caelestia/shell.json`
+(install.fish copies it, so the repo copy must match or it would revert).
+A `QVariantList` override **replaces the whole array**, so all three entries are listed.
+
+**Before (caelestia-shell 1.6.2 compiled defaults — idle was not overridden):**
+| timeout | idleAction | returnAction |
+|---------|-----------|--------------|
+| 180s (3m)  | lock | — |
+| 300s (5m)  | dpms off | dpms on |
+| 600s (10m) | systemctl suspend-then-hibernate | — |
+
+**After:**
+| timeout | idleAction | returnAction |
+|---------|-----------|--------------|
+| **900s (15m)**  | lock | — |
+| **1800s (30m)** | dpms off | dpms on |
+| **2700s (45m)** | systemctl suspend-then-hibernate | — |
+
+Suspend was raised 600->2700 because 600 < 1800 would have suspended before
+screen-off. `lockBeforeSleep:true` and `inhibitWhenAudio:true` left at defaults.
+
+**Apply / verify:** No daemon to restart — Caelestia hot-reloads shell.json
+(confirmed: shell PID unchanged, file re-serialized by the shell itself).
+Backup of the pre-change file: `~/.config/caelestia/shell.json.bak-20260524-165452`.

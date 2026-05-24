@@ -4,6 +4,7 @@ paru
 paru-debug
 plymouth-theme-arch-charge-big
 sddm-astronaut-theme
+spotify
 sweet-cursors-hyprcursor-git
 vscodium-bin
 zen-browser-bin
