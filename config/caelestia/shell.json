@@ -1,0 +1,21 @@
+{
+    "appearance": {
+        "font": {
+            "size": {
+                "scale": 0.8048810422960725
+            }
+        },
+        "padding": {
+            "scale": 0.9571728663141994
+        },
+        "rounding": {
+            "scale": 0.9987419750755288
+        },
+        "spacing": {
+            "scale": 0.9814541635196373
+        }
+    },
+    "services": {
+        "useFahrenheit": false
+    }
+}

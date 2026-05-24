@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Caelestia scheme.json and re-theme kitty
+
+[Path]
+PathChanged=%h/.local/state/caelestia/scheme.json
+Unit=caelestia-kitty-theme.service
+
+[Install]
+WantedBy=default.target

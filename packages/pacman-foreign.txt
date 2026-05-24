@@ -1,0 +1,9 @@
+caelestia-meta
+github-desktop-bin
+paru
+paru-debug
+plymouth-theme-arch-charge-big
+sddm-astronaut-theme
+sweet-cursors-hyprcursor-git
+vscodium-bin
+zen-browser-bin

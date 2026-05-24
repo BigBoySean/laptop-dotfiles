@@ -1,0 +1,6 @@
+[Unit]
+Description=Regenerate kitty colour theme from Caelestia scheme
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fish %h/.config/caelestia/scripts/kitty-theme.fish

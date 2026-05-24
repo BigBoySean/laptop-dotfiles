@@ -1,0 +1,27 @@
+# --- Editor / OS cruft -----------------------------------------------------
+*.bak
+*.bak.*
+*.swp
+.DS_Store
+
+# --- Caches & build artifacts ----------------------------------------------
+**/.cache/
+**/cache/
+**/__pycache__/
+node_modules/
+
+# --- Runtime state (machine-specific; not portable) ------------------------
+**/state/
+**/recent
+**/history
+
+# --- Caelestia wallpapers (large/personal; not tracked) --------------------
+caelestia/wallpaper*
+config/caelestia/wallpaper*
+
+# --- Secrets (defense in depth; nothing here should ever be committed) ------
+secrets/
+.env
+.env.*
+*.pem
+*.key
