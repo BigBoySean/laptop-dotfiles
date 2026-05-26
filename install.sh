@@ -51,7 +51,8 @@ ${c_blue}This will:${c_reset}
   1. Install $(wc -l < "$EXPLICIT") official packages   (sudo pacman -S --needed)
   2. Install $(wc -l < "$FOREIGN") AUR/foreign packages  (paru -S --needed)
   3. Copy user configs into ${CONFIG_HOME}:
-       hypr/hyprland.conf, caelestia/, kitty/, fuzzel/, foot/, systemd user units
+       hypr/hyprland.conf, caelestia/, quickshell/caelestia (override layer),
+       kitty/, fuzzel/, foot/, systemd user units
        (any existing file is backed up once to *.pre-dotfiles.bak)
   4. Enable user services: caelestia-kitty-theme.path, ydotool.service
 
@@ -96,6 +97,28 @@ ok "hypr/hyprland.conf"
 mkdir -p "$CONFIG_HOME/caelestia"
 rsync -a "$REPO_DIR/config/caelestia/" "$CONFIG_HOME/caelestia/"
 ok "caelestia/ (rsync, no --delete)"
+
+# quickshell: caelestia override layer.
+#   Quickshell picks the first XDG config dir containing
+#   <dir>/quickshell/caelestia/shell.qml as the whole config root — it does NOT
+#   merge file-by-file. So to override a single file (OsIcon.qml is the PC-connect
+#   button override), mirror the system tree as a directory of symlinks into
+#   ~/.config, then drop our real files on top of the symlinks they'd otherwise be.
+#   Re-running picks up any new upstream files (cp -rsn skips existing entries).
+if [ -d "/etc/xdg/quickshell/caelestia" ] && [ -d "$REPO_DIR/config/quickshell/caelestia" ]; then
+  mkdir -p "$CONFIG_HOME/quickshell/caelestia"
+  cp -rsn /etc/xdg/quickshell/caelestia/. "$CONFIG_HOME/quickshell/caelestia/"
+  while IFS= read -r -d '' src; do
+    rel="${src#"$REPO_DIR/config/quickshell/"}"
+    dest="$CONFIG_HOME/quickshell/$rel"
+    backup_once "$dest"
+    rm -f "$dest"   # drop the symlink so install writes a real file, not into /etc/xdg
+    install -Dm644 "$src" "$dest"
+  done < <(find "$REPO_DIR/config/quickshell" -type f -print0)
+  ok "quickshell/caelestia/ (symlink mirror + real overrides)"
+else
+  warn "skipping quickshell override (need /etc/xdg/quickshell/caelestia and repo's config/quickshell/caelestia)"
+fi
 
 # kitty
 for f in "$REPO_DIR"/config/kitty/*; do
