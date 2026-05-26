@@ -175,6 +175,7 @@ ${REPO_DIR}:
     sudo bash scripts/set-sddm-astronaut.sh
     sudo bash scripts/setup-pretty-boot.sh
     sudo bash scripts/tune-power.sh
+    sudo bash scripts/install-pc-tools.sh
 
 ${c_yellow}=================================================================${c_reset}
 

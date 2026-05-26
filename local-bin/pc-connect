@@ -1,0 +1,29 @@
+#!/bin/bash
+# Switch PC to single-monitor remote mode, activate Hyprland keyboard
+# passthrough, stream the desktop, then restore everything on exit
+# (including signal-driven exits — see the trap below).
+
+if ! pc-remote; then
+    notify-send -u critical "PC Connect" "Failed to switch PC to remote mode"
+    exit 1
+fi
+
+# Cleanup: always runs once we've successfully switched the PC.
+# Submap returns to `global` (NOT `reset`) because Caelestia parks every
+# bind in the `global` submap — `reset` would land in the empty default
+# submap and leave the laptop with no working keybinds.
+cleanup() {
+    hyprctl dispatch submap global >/dev/null 2>&1 || true
+    pc-home || notify-send -u critical "PC Connect" \
+        "Failed to restore PC monitors — run pc-home manually"
+}
+trap cleanup EXIT
+
+# Enter passthrough so keystrokes forward to Moonlight (and the PC).
+hyprctl dispatch submap passthrough >/dev/null
+notify-send "Keyboard passthrough active" \
+    "All keys forward to PC. Press Super+Shift+Esc to exit."
+
+# Stream — blocks until the user quits Moonlight (Ctrl+Alt+Shift+Q,
+# closing the window, etc.). Cleanup runs after this returns.
+moonlight stream bigboysean-pc Desktop
