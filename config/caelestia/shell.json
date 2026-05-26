@@ -19,6 +19,12 @@
         "battery": {
             "warnLevels": [
                 {
+                    "icon": "battery_android_frame_3",
+                    "level": 20,
+                    "message": "Heads up, battery is getting low",
+                    "title": "Battery low"
+                },
+                {
                     "icon": "battery_android_frame_2",
                     "level": 15,
                     "message": "You might want to plug in a charger",
