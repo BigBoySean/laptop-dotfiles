@@ -16,6 +16,29 @@
         }
     },
     "general": {
+        "battery": {
+            "warnLevels": [
+                {
+                    "icon": "battery_android_frame_2",
+                    "level": 15,
+                    "message": "You might want to plug in a charger",
+                    "title": "Low battery"
+                },
+                {
+                    "icon": "battery_android_frame_1",
+                    "level": 10,
+                    "message": "You should probably plug in a charger <b>now</b>",
+                    "title": "Battery getting low"
+                },
+                {
+                    "critical": true,
+                    "icon": "battery_android_alert",
+                    "level": 5,
+                    "message": "Plug in the charger right now!",
+                    "title": "Critical battery level"
+                }
+            ]
+        },
         "idle": {
             "timeouts": [
                 {
