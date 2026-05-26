@@ -26,4 +26,4 @@ notify-send "Keyboard passthrough active" \
 
 # Stream — blocks until the user quits Moonlight (Ctrl+Alt+Shift+Q,
 # closing the window, etc.). Cleanup runs after this returns.
-moonlight stream bigboysean-pc Desktop
+QT_QPA_PLATFORM=xcb moonlight stream bigboysean-pc Desktop
